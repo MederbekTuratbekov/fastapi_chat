@@ -7,6 +7,8 @@ from chat.db.models import User, Group, GroupMember
 from chat.db.schema import GroupMemberRead
 from chat.api.auth import get_current_user
 
+
+
 router = APIRouter(tags=["Group Members"], prefix="/api/groups")
 
 
