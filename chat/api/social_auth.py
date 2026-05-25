@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from starlette.requests import Request
 from authlib.integrations.starlette_client import OAuth
-from ..config import settings
+from chat.config import settings
 
 
 social_router = APIRouter(prefix='/oauth', tags=['Social Auth'])
@@ -12,7 +12,7 @@ oauth = OAuth()
 oauth.register(
     name='github',
     client_id=settings.GITHUB_CLIENT_ID,
-    secter_key=settings.GITHUB_KEY,
+    client_secret=settings.GITHUB_KEY,
     authorize_url='https://github.com/login/oauth/authorize'
 )
 
@@ -26,7 +26,7 @@ async def login_github(request: Request):
 oauth.register(
     name='google',
     client_id=settings.GOOGLE_CLIENT_ID,
-    secter_key=settings.GOOGLE_KEY,
+    client_secret=settings.GOOGLE_KEY,
     authorize_url="https://accounts.google.com/o/oauth2/auth",
     client_kwargs={"scope": "openid profile email"},)
 

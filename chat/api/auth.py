@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from datetime import timedelta, timezone, datetime
 
-from chat.db.database import SessionLocal
+from chat.db.database import get_db
 from chat.db.models import User
 from chat.db.schema import UserCreate, UserRead, Token
 from chat.config import (
@@ -17,14 +17,6 @@ from chat.config import (
 )
 
 auth_router = APIRouter(prefix='/auth', tags=['Auth'])
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # ====================== PASSWORD UTILS ======================

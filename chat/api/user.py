@@ -1,21 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
-
-from chat.db.database import SessionLocal
+from chat.db.database import get_db
 from chat.db.models import User
 from chat.db.schema import UserRead
-from chat.api.auth import get_current_user   # ← исправлено
+from chat.api.auth import get_current_user
 
 router = APIRouter(tags=["Users"], prefix="/api/users")
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.get("/me", response_model=UserRead)

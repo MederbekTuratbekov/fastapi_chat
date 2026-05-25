@@ -6,8 +6,16 @@ from sqlalchemy.orm import Session
 from chat.db.database import SessionLocal
 from chat.db.models import User, Group, GroupMember, Message
 from chat.config import SECRET_KEY, ALGORITHM
-
-
+from chat.api.groups import (
+    db_get_group,
+    db_is_member,
+    db_group_member_ids,
+    db_create_group,
+    db_delete_group,
+    db_rename_group,
+    db_add_members,
+    db_get_members_with_users,
+)
 
 chat_router = APIRouter(tags=["Chat WS"])
 
@@ -15,7 +23,6 @@ chat_router = APIRouter(tags=["Chat WS"])
 def _extract_token(websocket: WebSocket, token_q: Optional[str]) -> Optional[str]:
     if token_q:
         return token_q
-
     auth = websocket.headers.get("authorization")
     if not auth:
         return None
@@ -33,7 +40,6 @@ def get_user_from_token(db: Session, token: str) -> User:
             raise JWTError("no sub")
     except JWTError:
         raise ValueError("Invalid token")
-
     user = db.query(User).filter(User.username == username).first()
     if not user:
         raise ValueError("User not found")
@@ -73,30 +79,12 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-def is_member(db: Session, group_id: int, user_id: int) -> bool:
-    return db.query(GroupMember).filter(
-        GroupMember.group_id == group_id,
-        GroupMember.user_id == user_id
-    ).first() is not None
-
-
-def get_group(db: Session, group_id: int) -> Optional[Group]:
-    return db.query(Group).filter(Group.id == group_id).first()
-
-
-def group_member_ids(db: Session, group_id: int) -> List[int]:
-    rows = db.query(GroupMember.user_id).filter(
-        GroupMember.group_id == group_id
-    ).all()
-    return [r[0] for r in rows]
-
-
 def group_to_dict(g: Group) -> dict:
     return {
         "id": g.id,
         "name": g.name,
         "owner_id": g.owner_id,
-        "created_at": g.created_at.isoformat() if g.created_at else None
+        "created_at": g.created_at.isoformat() if g.created_at else None,
     }
 
 
@@ -104,7 +92,7 @@ def msg_to_dict(m: Message) -> dict:
     return {
         "id": m.id,
         "group_id": m.group_id,
-        "user_id": m.author_id,          # изменили с user_id на author_id
+        "user_id": m.author_id,
         "text": m.text,
         "sent_at": m.sent_at.isoformat() if m.sent_at else None,
     }
@@ -135,13 +123,11 @@ async def chat_ws(websocket: WebSocket, token: Optional[str] = Query(default=Non
         await websocket.send_json({
             "event": "connected",
             "user_id": user.id,
-            "username": user.username
+            "username": user.username,
         })
 
         while True:
             data: Dict[str, Any] = await websocket.receive_json()
-
-            # Поддержка обоих вариантов: "action" и "actions"
             action = data.get("action") or data.get("actions")
 
             if not action:
@@ -154,15 +140,7 @@ async def chat_ws(websocket: WebSocket, token: Optional[str] = Query(default=Non
                 if not name:
                     await websocket.send_json({"event": "error", "action": action, "detail": "name is required"})
                     continue
-
-                g = Group(name=name, owner_id=user.id)
-                db.add(g)
-                db.commit()
-                db.refresh(g)
-
-                db.add(GroupMember(group_id=g.id, user_id=user.id))
-                db.commit()
-
+                g = db_create_group(db, name, user.id)
                 await websocket.send_json({"event": "group_created", "group": group_to_dict(g)})
                 continue
 
@@ -177,7 +155,7 @@ async def chat_ws(websocket: WebSocket, token: Optional[str] = Query(default=Non
                 )
                 await websocket.send_json({
                     "event": "groups",
-                    "items": [group_to_dict(g) for g in groups]
+                    "items": [group_to_dict(g) for g in groups],
                 })
                 continue
 
@@ -185,27 +163,64 @@ async def chat_ws(websocket: WebSocket, token: Optional[str] = Query(default=Non
             if action == "rename_group":
                 group_id = data.get("group_id")
                 new_name = (data.get("name") or "").strip()
-
                 if not group_id or not new_name:
                     await websocket.send_json({"event": "error", "action": action, "detail": "group_id and name required"})
                     continue
-
-                g = get_group(db, int(group_id))
+                g = db_get_group(db, int(group_id))
                 if not g:
                     await websocket.send_json({"event": "error", "action": action, "detail": "group not found"})
                     continue
                 if g.owner_id != user.id:
                     await websocket.send_json({"event": "error", "action": action, "detail": "only owner can rename"})
                     continue
+                g = db_rename_group(db, g, new_name)
+                members = db_group_member_ids(db, g.id)
+                await manager.broadcast_to_users(members, {"event": "group_renamed", "group": group_to_dict(g)})
+                continue
 
-                g.name = new_name
-                db.commit()
-                db.refresh(g)
+            # === DELETE GROUP ===
+            if action == "delete_group":
+                group_id = data.get("group_id")
+                if not group_id:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "group_id required"})
+                    continue
+                g = db_get_group(db, int(group_id))
+                if not g:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "group not found"})
+                    continue
+                if g.owner_id != user.id:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "only owner can delete"})
+                    continue
+                members = db_group_member_ids(db, g.id)
+                db_delete_group(db, g)
+                await manager.broadcast_to_users(members, {"event": "group_deleted", "group_id": int(group_id)})
+                continue
 
-                members = group_member_ids(db, g.id)
-                await manager.broadcast_to_users(members, {
-                    "event": "group_renamed",
-                    "group": group_to_dict(g)
+            # === GROUP DETAILS ===
+            if action == "group_details":
+                group_id = data.get("group_id")
+                if not group_id:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "group_id required"})
+                    continue
+                g = db_get_group(db, int(group_id))
+                if not g:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "group not found"})
+                    continue
+                if not db_is_member(db, g.id, user.id):
+                    await websocket.send_json({"event": "error", "action": action, "detail": "not a member"})
+                    continue
+                members_data = db_get_members_with_users(db, g.id)
+                await websocket.send_json({
+                    "event": "group_details",
+                    "group": group_to_dict(g),
+                    "members": [
+                        {
+                            "user_id": u.id,
+                            "username": u.username,
+                            "joined_at": gm.joined_at.isoformat() if gm.joined_at else None,
+                        }
+                        for gm, u in members_data
+                    ],
                 })
                 continue
 
@@ -213,41 +228,22 @@ async def chat_ws(websocket: WebSocket, token: Optional[str] = Query(default=Non
             if action == "add_members":
                 group_id = data.get("group_id")
                 user_ids = data.get("user_ids") or []
-
                 if not group_id or not isinstance(user_ids, list) or not user_ids:
                     await websocket.send_json({"event": "error", "action": action, "detail": "group_id and user_ids required"})
                     continue
-
-                g = get_group(db, int(group_id))
+                g = db_get_group(db, int(group_id))
                 if not g:
                     await websocket.send_json({"event": "error", "action": action, "detail": "group not found"})
                     continue
                 if g.owner_id != user.id:
                     await websocket.send_json({"event": "error", "action": action, "detail": "only owner can add members"})
                     continue
-
-                added: List[int] = []
-                for uid in user_ids:
-                    if not isinstance(uid, int):
-                        continue
-                    if db.query(User).filter(User.id == uid).first() is None:
-                        continue
-                    if db.query(GroupMember).filter(
-                        GroupMember.group_id == g.id,
-                        GroupMember.user_id == uid
-                    ).first():
-                        continue
-
-                    db.add(GroupMember(group_id=g.id, user_id=uid))
-                    added.append(uid)
-
-                db.commit()
-
-                members = group_member_ids(db, g.id)
+                added = db_add_members(db, g.id, user_ids)
+                members = db_group_member_ids(db, g.id)
                 await manager.broadcast_to_users(members, {
                     "event": "members_added",
                     "group_id": g.id,
-                    "added_user_ids": added
+                    "added_user_ids": added,
                 })
                 continue
 
@@ -255,25 +251,42 @@ async def chat_ws(websocket: WebSocket, token: Optional[str] = Query(default=Non
             if action == "send_message":
                 group_id = data.get("group_id")
                 text = (data.get("text") or "").strip()
-
                 if not group_id or not text:
                     await websocket.send_json({"event": "error", "action": action, "detail": "group_id and text required"})
                     continue
-
                 group_id = int(group_id)
-                if not is_member(db, group_id, user.id):
+                if not db_is_member(db, group_id, user.id):
                     await websocket.send_json({"event": "error", "action": action, "detail": "not a member"})
                     continue
-
                 m = Message(group_id=group_id, author_id=user.id, text=text)
                 db.add(m)
                 db.commit()
                 db.refresh(m)
+                members = db_group_member_ids(db, group_id)
+                await manager.broadcast_to_users(members, {"event": "message", "message": msg_to_dict(m)})
+                continue
 
-                members = group_member_ids(db, group_id)
+            # === DELETE MESSAGE ===
+            if action == "delete_message":
+                message_id = data.get("message_id")
+                if not message_id:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "message_id required"})
+                    continue
+                m = db.query(Message).filter(Message.id == int(message_id)).first()
+                if not m:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "message not found"})
+                    continue
+                if m.author_id != user.id:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "only author can delete"})
+                    continue
+                members = db_group_member_ids(db, m.group_id)
+                group_id_for_broadcast = m.group_id
+                db.delete(m)
+                db.commit()
                 await manager.broadcast_to_users(members, {
-                    "event": "message",
-                    "message": msg_to_dict(m)
+                    "event": "message_deleted",
+                    "message_id": message_id,
+                    "group_id": group_id_for_broadcast,
                 })
                 continue
 
@@ -282,27 +295,22 @@ async def chat_ws(websocket: WebSocket, token: Optional[str] = Query(default=Non
                 group_id = data.get("group_id")
                 limit = int(data.get("limit") or 50)
                 before_id = data.get("before_id")
-
                 if not group_id:
                     await websocket.send_json({"event": "error", "action": action, "detail": "group_id required"})
                     continue
-
                 group_id = int(group_id)
-                if not is_member(db, group_id, user.id):
+                if not db_is_member(db, group_id, user.id):
                     await websocket.send_json({"event": "error", "action": action, "detail": "not a member"})
                     continue
-
                 q = db.query(Message).filter(Message.group_id == group_id)
                 if before_id:
                     q = q.filter(Message.id < int(before_id))
-
                 msgs = q.order_by(Message.id.desc()).limit(min(limit, 200)).all()
                 msgs = list(reversed(msgs))
-
                 await websocket.send_json({
                     "event": "messages",
                     "group_id": group_id,
-                    "items": [msg_to_dict(x) for x in msgs]
+                    "items": [msg_to_dict(x) for x in msgs],
                 })
                 continue
 

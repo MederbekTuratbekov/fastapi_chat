@@ -2,20 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 
-from chat.db.database import SessionLocal
+from chat.db.database import get_db
 from chat.db.models import User, Group, GroupMember
 from chat.db.schema import GroupMemberRead
-from chat.api.auth import get_current_user   # ← исправлено
+from chat.api.auth import get_current_user
 
 router = APIRouter(tags=["Group Members"], prefix="/api/groups")
 
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.get("/{group_id}/members", response_model=List[dict])

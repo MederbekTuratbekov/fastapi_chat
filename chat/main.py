@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 import uvicorn
 
-# Импортируем все роутеры
 from api.auth import auth_router
+from api.social_auth import social_router
 from api.chat import chat_router
 from api.groups import router as groups_router
 from api.members import router as members_router
@@ -16,7 +16,8 @@ app = FastAPI(
 
 # Подключаем роутеры
 app.include_router(auth_router)
-app.include_router(chat_router)        # WebSocket должен быть здесь
+app.include_router(social_router)
+app.include_router(chat_router)
 app.include_router(groups_router)
 app.include_router(members_router)
 app.include_router(user_router)
