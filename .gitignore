@@ -18,4 +18,4 @@ Thumbs.db
 desktop.ini
 
 # скрываем ключ проекта
-#chat/.env
+chat/.env
