@@ -62,6 +62,7 @@ class MessageRead(MessageBase):
     group_id: int
     author_id: int
     sent_at: datetime
+    edited_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
