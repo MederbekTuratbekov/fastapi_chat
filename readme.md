@@ -167,9 +167,9 @@ uvicorn main:app --reload
 fastapi_chat/
 ├── .gitignore
 ├── readme.md
-└── chat
+└── chat/
     ├── alembic.ini
-    ├── api
+    ├── api/
     │   ├── __init__.py
     │   ├── auth.py
     │   ├── chat.py
@@ -179,17 +179,17 @@ fastapi_chat/
     │   └── user.py
     ├── config.py
     ├── create_secret_key.py
-    ├── db
+    ├── db/
     │   ├── __init__.py
     │   ├── database.py
     │   ├── models.py
     │   └── schema.py
     ├── main.py
-    ├── migrations
+    ├── migrations/
     │   ├── README
     │   ├── env.py
     │   ├── script.py.mako
-    │   └── versions
+    │   └── versions/
     │       └── 14bf27f076a7_.py
     └── requirements.txt
 ```
