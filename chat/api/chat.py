@@ -95,6 +95,7 @@ def msg_to_dict(m: Message) -> dict:
         "user_id": m.author_id,
         "text": m.text,
         "sent_at": m.sent_at.isoformat() if m.sent_at else None,
+        "edited_at": m.edited_at.isoformat() if m.edited_at else None,
     }
 
 
@@ -306,6 +307,7 @@ async def chat_ws(websocket: WebSocket, token: Optional[str] = Query(default=Non
                     await websocket.send_json({"event": "error", "action": action, "detail": "only author can edit"})
                     continue
                 m.text = new_text
+                m.edited_at = datetime.now(timezone.utc)
                 db.commit()
                 db.refresh(m)
                 members = db_group_member_ids(db, m.group_id)
