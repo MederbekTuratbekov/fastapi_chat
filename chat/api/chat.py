@@ -2,6 +2,7 @@ from typing import Dict, Set, List, Optional, Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
 from chat.db.database import SessionLocal
 from chat.db.models import User, Group, GroupMember, Message
