@@ -58,6 +58,7 @@ class Message(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, default=None)  # <-- добавить
 
     author_id: Mapped[int] = mapped_column(ForeignKey('user.id'), nullable=False)
     author: Mapped['User'] = relationship(back_populates='messages')
