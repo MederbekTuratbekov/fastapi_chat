@@ -33,26 +33,32 @@ curl -X POST http://localhost:8000/auth/login \
 ```
 
 **Connect and send a message (WebSocket):**
-```
 ws://localhost:8000/ws/chat?token=<access_token>
 
 → send: {"action": "send_message", "group_id": 1, "text": "Hello team!"}
 ← recv: {"event": "message", "message": {"id": 42, "group_id": 1,
-          "user_id": 3, "text": "Hello team!", "sent_at": "2024-06-07T10:00:00"}}
-```
+"user_id": 3, "text": "Hello team!", "sent_at": "2024-06-07T10:00:00",
+"edited_at": null}}
+
+**Edit a message (WebSocket):**
+→ send: {"action": "edit_message", "message_id": 42, "text": "Hello team! (edited)"}
+← recv: {"event": "message_edited", "message": {"id": 42, "group_id": 1,
+"user_id": 3, "text": "Hello team! (edited)",
+"sent_at": "2024-06-07T10:00:00", "edited_at": "2024-06-07T10:05:00"}}
 
 ---
 
 ## What I Built
 
-- **WebSocket chat hub** — single `/ws/chat` endpoint handles 10+ action
-  types: send/delete/fetch messages, create/rename/delete groups,
+- **WebSocket chat hub** — single `/ws/chat` endpoint handles 11+ action
+  types: send/edit/delete/fetch messages, create/rename/delete groups,
   add members, group details, list groups
 - **Real-time broadcast** — `ConnectionManager` broadcasts events to all
   online group members; dead connections cleaned up automatically
 - **JWT auth** — register, login, token refresh via REST; token decoded
   on WS connect for stateless identity
-- **OAuth2 social login** — GitHub and Google via authlib
+- **OAuth2 social login** — GitHub and Google via authlib with
+  automatic user creation on first login
 - **Group management REST API** — full CRUD at `/api/groups/` with
   owner-only write operations
 - **Member management** — add/remove members with membership guard on
@@ -60,6 +66,8 @@ ws://localhost:8000/ws/chat?token=<access_token>
 - **User search** — `/api/users/search?q=` with ilike on username/email
 - **Cursor-based message history** — `fetch_messages` with `before_id`
   and configurable `limit` (max 200)
+- **Message editing** — `edit_message` updates text and sets `edited_at`
+  timestamp; broadcast notifies all online group members instantly
 
 ---
 
@@ -75,18 +83,16 @@ ws://localhost:8000/ws/chat?token=<access_token>
 | Auth        | python-jose (JWT), passlib (bcrypt)         |
 | OAuth2      | authlib (GitHub, Google)                    |
 | Database    | PostgreSQL                                  |
+| HTTP Client | httpx (OAuth user info requests)            |
 | Config      | python-dotenv                               |
 
 ---
 
 ## Architecture
-
-```
 Client (WS) ──→ /ws/chat ──→ ConnectionManager
-                                  ↕  broadcast
+↕ broadcast
 Client (HTTP) ─→ REST routers → SQLAlchemy ORM → PostgreSQL
-                  (auth, groups, members, users, social_auth)
-```
+(auth, groups, members, users, social_auth)
 
 Single WebSocket endpoint handles all real-time actions via
 `action`-based dispatch (internal event bus pattern). REST routes
@@ -113,6 +119,11 @@ dead sockets pruned on send failure with zero impact on other connections.
 `groups.py` and imported by both the WebSocket handler and HTTP router
 — eliminates duplicate query logic and ensures consistent behaviour
 regardless of transport.
+
+**4. OAuth2 with automatic user provisioning**
+GitHub and Google callbacks find or create a user by email — existing
+accounts are linked automatically, new users get a random secure
+password since they authenticate via OAuth exclusively.
 
 ---
 
