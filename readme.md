@@ -161,7 +161,37 @@ uvicorn main:app --reload
 
 ---
 
-[//]: # (## Author)
+---
 
-[//]: # ()
-[//]: # ([Your Name] — [LinkedIn]&#40;#&#41; | [GitHub]&#40;#&#41;)
+## Project Structure
+
+```
+fastapi_chat
+├── .gitignore
+├── readme.md
+└── chat
+    ├── alembic.ini
+    ├── api
+    │   ├── __init__.py
+    │   ├── auth.py
+    │   ├── chat.py
+    │   ├── groups.py
+    │   ├── members.py
+    │   ├── social_auth.py
+    │   └── user.py
+    ├── config.py
+    ├── create_secret_key.py
+    ├── db
+    │   ├── __init__.py
+    │   ├── database.py
+    │   ├── models.py
+    │   └── schema.py
+    ├── main.py
+    ├── migrations
+    │   ├── README
+    │   ├── env.py
+    │   ├── script.py.mako
+    │   └── versions
+    │       └── 14bf27f076a7_.py
+    └── requirements.txt
+```
