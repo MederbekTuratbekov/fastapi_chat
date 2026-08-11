@@ -164,7 +164,7 @@ uvicorn main:app --reload
 ## Project Structure
 
 ```
-fastapi_chat
+fastapi_chat/
 ├── .gitignore
 ├── readme.md
 └── chat
