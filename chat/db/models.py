@@ -3,7 +3,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Integer, String, Enum, Date, ForeignKey, DateTime, Text
 from enum import Enum as PyEnum
 from datetime import date, datetime, timezone
-from typing import List
+from typing import List, Optional
 
 
 class UserStatus(str, PyEnum):
