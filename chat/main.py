@@ -8,7 +8,7 @@ from api.chat import chat_router
 from api.groups import router as groups_router
 from api.members import router as members_router
 from api.user import router as user_router
-from chat.config import SECRET_KEY
+from config import SECRET_KEY
 
 app = FastAPI(
     title="FastAPI Chat",
