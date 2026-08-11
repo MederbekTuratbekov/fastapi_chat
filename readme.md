@@ -161,8 +161,6 @@ uvicorn main:app --reload
 
 ---
 
----
-
 ## Project Structure
 
 ```
@@ -195,3 +193,4 @@ fastapi_chat
     │       └── 14bf27f076a7_.py
     └── requirements.txt
 ```
+---
