@@ -30,7 +30,14 @@ oauth.register(
 async def login_github(request: Request):
     return await oauth.github.authorize_redirect(request, settings.GITHUB_URL)
 
+@social_router.get('/github/callback')
+async def github_callback(request: Request):
+    token = await oauth.github.authorize_access_token(request)
 
 @social_router.get('/google')
 async def login_google(request: Request):
     return await oauth.google.authorize_redirect(request, settings.GOOGLE_URL)
+
+@social_router.get('/google/callback')
+async def google_callback(request: Request):
+    token = await oauth.google.authorize_access_token(request)
