@@ -290,6 +290,31 @@ async def chat_ws(websocket: WebSocket, token: Optional[str] = Query(default=Non
                 })
                 continue
 
+
+            # === EDIT MESSAGE ===
+            if action == "edit_message":
+                message_id = data.get("message_id")
+                new_text = (data.get("text") or "").strip()
+                if not message_id or not new_text:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "message_id and text required"})
+                    continue
+                m = db.query(Message).filter(Message.id == int(message_id)).first()
+                if not m:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "message not found"})
+                    continue
+                if m.author_id != user.id:
+                    await websocket.send_json({"event": "error", "action": action, "detail": "only author can edit"})
+                    continue
+                m.text = new_text
+                db.commit()
+                db.refresh(m)
+                members = db_group_member_ids(db, m.group_id)
+                await manager.broadcast_to_users(members, {
+                    "event": "message_edited",
+                    "message": msg_to_dict(m),
+                })
+                continue
+
             # === FETCH MESSAGES ===
             if action == "fetch_messages":
                 group_id = data.get("group_id")
